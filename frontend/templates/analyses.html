@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Analyses — SPRINT{% endblock %}
+{% block content %}
+<h1>Analyses existantes</h1>
+
+{% if not analyses %}
+<p class="muted">Aucune analyse pour le moment. <a href="/">Importer un document</a>.</p>
+{% endif %}
+
+<table>
+  <tr><th>Analyse</th><th>Statut</th><th>Créée</th><th>Mis à jour</th><th></th></tr>
+  {% for a in analyses %}
+  <tr>
+    <td><a href="/analysis/{{ a.analysis_id }}">{{ a.analysis_id }}</a></td>
+    <td>
+      {% if a.status == "11. Registre final" %}
+        <span class="badge ok">Final</span>
+      {% elif "9." in a.status %}
+        <span class="badge warn">Validation requise</span>
+      {% else %}
+        <span class="badge gray">{{ a.status }}</span>
+      {% endif %}
+    </td>
+    <td class="muted">{{ a.created_at }}</td>
+    <td class="muted">{{ a.updated_at }}</td>
+    <td><a class="btn" href="/analysis/{{ a.analysis_id }}">Ouvrir</a></td>
+  </tr>
+  {% endfor %}
+</table>
+{% endblock %}

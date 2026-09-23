@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Journal d'audit {{ analysis_id }} — SPRINT{% endblock %}
+{% block content %}
+
+<h1>Journal d'audit — {{ analysis_id }}</h1>
+<p class="muted">Chaque proposition d'agent et chaque décision humaine est horodatée et relue.</p>
+<p><a class="btn" href="/analysis/{{ analysis_id }}">← Retour à l'analyse</a></p>
+
+<table>
+  <tr><th>Horodatage</th><th>Agent</th><th>Action</th><th>Entrée</th><th>Sortie</th><th>Validation</th><th>Analyste</th></tr>
+  {% for e in entries %}
+  <tr>
+    <td class="muted" style="white-space:nowrap">{{ e.timestamp }}</td>
+    <td>{{ e.agent }}</td>
+    <td><code>{{ e.action }}</code></td>
+    <td style="font-size:.8rem">{{ e.input }}</td>
+    <td style="font-size:.8rem">{{ e.output }}</td>
+    <td>
+      {% if e.human_validation == "PENDING" %}<span class="badge gray">PENDING</span>
+      {% else %}<span class="badge ok">{{ e.human_validation }}</span>{% endif %}
+    </td>
+    <td class="muted">{{ e.user or "—" }}{% if e.comment %} <em>({{ e.comment }})</em>{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endblock %}

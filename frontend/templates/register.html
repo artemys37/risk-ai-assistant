@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Registre final {{ analysis_id }} — SPRINT{% endblock %}
+{% block content %}
+
+<h1>Registre des risques — {{ analysis_id }}</h1>
+<p class="muted">
+  Statut : <strong>{{ data.status }}</strong>.
+  Les risques encore « PROPOSÉ PAR IA » n'ont pas été validés par un humain :
+  ils n'appartiennent pas au registre final.
+</p>
+<p><a class="btn" href="/analysis/{{ analysis_id }}">← Retour à l'analyse</a>
+   <a class="btn" href="/export/{{ analysis_id }}">Télécharger le JSON</a></p>
+
+<table>
+  <tr>
+    <th>Risque</th><th>Scénario</th><th>Prob.</th><th>Impact</th><th>Score</th>
+    <th>Mesures existantes</th><th>Mesures recommandées</th><th>Propriétaire</th><th>Statut</th>
+  </tr>
+  {% for r in data.register %}
+  <tr>
+    <td><strong>{{ r.id }}</strong></td>
+    <td style="max-width:340px">
+      {{ r.scenario.description }}
+      <br><small class="muted">Sources : {{ r.sources | join(", ") or "—" }}</small>
+    </td>
+    <td>{{ r.assessment.probability }}</td>
+    <td>{{ r.assessment.impact }}</td>
+    <td><strong>{{ r.score }}</strong></td>
+    <td>{{ r.existing_measures }}</td>
+    <td>{{ r.recommended_measures }}</td>
+    <td>{{ r.owner }}</td>
+    <td>
+      {% if r.status == "VALIDÉ PAR HUMAIN" %}<span class="badge ok">Validé</span>
+      {% elif r.status == "MODIFIÉ PAR HUMAIN" %}<span class="badge warn">Modifié</span>
+      {% elif r.status == "REJETÉ PAR HUMAIN" %}<span class="badge bad">Rejeté</span>
+      {% else %}<span class="badge gray">{{ r.status }}</span>{% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+
+<h2>Critique automatique</h2>
+{% if data.critic_report %}
+<div class="panel">
+  <p>Verdict : <span class="badge {{ 'ok' if data.critic_report.status == 'PASS' else ('warn' if data.critic_report.status == 'REVIEW_REQUIRED' else 'bad') }}">{{ data.critic_report.status }}</span></p>
+  {% if data.critic_report.missing_information %}
+  <ul>{% for i in data.critic_report.missing_information %}<li class="muted">{{ i }}</li>{% endfor %}</ul>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

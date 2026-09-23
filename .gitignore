@@ -1,0 +1,31 @@
+# Environnement et secrets
+.env
+venv/
+.venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Base de données locale
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Fichiers utilisateur importés (données potentiellement sensibles)
+uploads/
+data/*
+!data/.gitkeep

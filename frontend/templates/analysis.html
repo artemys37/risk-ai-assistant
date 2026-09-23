@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}Analyse {{ analysis_id }} — SPRINT{% endblock %}
+{% block content %}
+
+{% if error %}
+<div class="error">{{ error }}</div>
+{% endif %}
+{% if flashed %}
+<div class="flash">{{ flashed }}</div>
+{% endif %}
+
+<div class="rowform" style="justify-content:space-between">
+  <h1 style="margin:0">Analyse {{ analysis_id }}</h1>
+  <div class="rowform">
+    <a class="btn" href="/analysis/{{ analysis_id }}/audit">Journal d'audit ({{ audit_count }})</a>
+    <a class="btn" href="/register/{{ analysis_id }}">Registre final</a>
+    <a class="btn" href="/export/{{ analysis_id }}">Export JSON</a>
+    <form action="/analysis/{{ analysis_id }}/rerun" method="post"><button type="submit">Relancer l'analyse</button></form>
+  </div>
+</div>
+<p class="muted">{{ status_label }}</p>
+
+<div class="progress">
+  {% for stage in stages %}
+    {% if loop.index <= stage_index %}
+      <span class="step done">{{ loop.index }}</span>
+    {% else %}
+      <span class="step">{{ loop.index }}</span>
+    {% endif %}
+  {% endfor %}
+</div>
+
+<h2>Rapport de l'agent critique</h2>
+{% if critic %}
+<div class="panel">
+  <p>
+    Verdict :
+    {% if critic.status == "PASS" %}<span class="badge ok">PASS</span>
+    {% elif critic.status == "REVIEW_REQUIRED" %}<span class="badge warn">REVIEW_REQUIRED</span>
+    {% else %}<span class="badge bad">REJECT</span>{% endif %}
+    <span class="muted">— {{ critic.checked_ids | length }} éléments vérifiés</span>
+  </p>
+  {% if critic.issues %}
+  <p><strong>Points bloquants / à corriger :</strong></p>
+  <ul>{% for issue in critic.issues %}<li>{{ issue }}</li>{% endfor %}</ul>
+  {% endif %}
+  {% if critic.missing_information %}
+  <p><strong>Informations manquantes :</strong></p>
+  <ul>{% for info in critic.missing_information %}<li>{{ info }}</li>{% endfor %}</ul>
+  {% endif %}
+  {% if critic.recommendations %}
+  <ul>{% for rec in critic.recommendations %}<li class="muted">{{ rec }}</li>{% endfor %}</ul>
+  {% endif %}
+</div>
+{% else %}
+<div class="panel muted">L'agent critique n'a pas encore tourné (analyse non lancée).</div>
+{% endif %}
+
+<h2>Registre des risques proposés ({{ pending_count }} en attente)</h2>
+{% if risks %}
+<table>
+  <tr>
+    <th>Risque</th><th>Prob.</th><th>Impact</th><th>Score</th><th>Statut</th>
+    <th>Décision humaine</th>
+  </tr>
+  {% for risk in risks %}
+  <tr id="risk-{{ risk.id }}">
+    <td>
+      <strong>{{ risk.id }}</strong>
+      <br><span class="muted" style="font-size:.85rem">{{ risk.scenario.description }}</span>
+      <br><small class="muted">Acteur : {{ risk.scenario.threat_actor }} · Actif : {{ risk.scenario.asset_id }} · Menace : {{ risk.scenario.threat_id }} · Vuln. : {{ risk.scenario.vulnerability_id }}</small>
+      <br><small class="muted">Sources : {{ risk.sources | join(", ") or "aucune" }}</small>
+      <details>
+        <summary>Justification &amp; détails</summary>
+        <p>{{ risk.assessment.justification }}</p>
+        <p class="muted">Mesures existantes : {{ risk.existing_measures }} · Propriétaire : {{ risk.owner }}</p>
+        {% if risk.scenario.consequences %}<ul>{% for c in risk.scenario.consequences %}<li>{{ c }}</li>{% endfor %}</ul>{% endif %}
+        {% if risk.scenario.hypotheses %}<ul>{% for h in risk.scenario.hypotheses %}<li class="muted">⚠ {{ h }}</li>{% endfor %}</ul>{% endif %}
+      </details>
+    </td>
+    <td>{{ risk.assessment.probability }}</td>
+    <td>{{ risk.assessment.impact }}</td>
+    <td><strong>{{ risk.score }}</strong> <span class="badge {{ risk.score_label | lower | replace(' ','-') }} gray">{{ risk.score_label }}</span></td>
+    <td>
+      <span class="badge {{ 'warn' if risk.status == 'PROPOSÉ PAR IA' else ('ok' if risk.status == 'VALIDÉ PAR HUMAIN' else 'gray') }}">{{ risk.status }}</span>
+    </td>
+    <td>
+      {% if risk.status == "PROPOSÉ PAR IA" %}
+      <form action="/analysis/{{ analysis_id }}/risks/{{ risk.id }}/validate" method="post" class="stack">
+        <select name="action">
+          <option value="ACCEPT">Accepter</option>
+          <option value="MODIFY">Modifier</option>
+          <option value="REJECT">Rejeter</option>
+        </select>
+        <div class="rowform">
+          <input type="number" name="probability" min="1" max="5" placeholder="Prob. (1-5)">
+          <input type="number" name="impact" min="1" max="5" placeholder="Impact (1-5)">
+        </div>
+        <textarea name="justification" rows="2" placeholder="Justification (obligatoire si modification)"></textarea>
+        <input type="text" name="comment" placeholder="Commentaire de l'analyste">
+        <input type="text" name="recommended_measures" placeholder="Mesures recommandées (si connues)">
+        <input type="text" name="owner" placeholder="Propriétaire du risque (si connu)">
+        <button type="submit">Appliquer la décision</button>
+      </form>
+      {% else %}
+        <span class="muted">{{ risk.human_validation }}</span>
+        {% if risk.analyst_comment %}<p style="font-size:.85rem" class="muted">{{ risk.analyst_comment }}</p>{% endif %}
+      {% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<div class="panel muted">Aucun risque proposé pour le moment.</div>
+{% endif %}
+
+<h2>Sorties des agents</h2>
+<details>
+  <summary>Agent Documentation — extraction ({{ agents_output.extraction.system_name if agents_output.extraction else "—" }})</summary>
+  {% if agents_output.extraction %}
+  <pre>{{ agents_output.extraction | tojson(indent=2) }}</pre>
+  {% else %}<p class="muted">Non exécuté.</p>{% endif %}
+</details>
+<details>
+  <summary>Agent Actifs — {{ agents_output.assets | length }} actif(s)</summary>
+  <ul>{% for a in agents_output.assets %}<li>{{ a.id }} — <strong>{{ a.name }}</strong> ({{ a.type }}) · confiance {{ a.confidence }} · {{ a.evidence_type }} · sources {{ a.source | join(", ") or "—" }}</li>{% endfor %}</ul>
+</details>
+<details>
+  <summary>Agent Menaces — {{ agents_output.threats | length }} menace(s)</summary>
+  <ul>{% for t in agents_output.threats %}<li>{{ t.id }} — <strong>{{ t.name }}</strong> → {{ t.target_assets | join(", ") }} · confiance {{ t.confidence }} · {{ t.evidence_type }}</li>{% endfor %}</ul>
+</details>
+<details>
+  <summary>Agent Vulnérabilités — {{ agents_output.vulnerabilities | length }} vulnérabilité(s)</summary>
+  <ul>{% for v in agents_output.vulnerabilities %}<li>{{ v.id }} — <strong>{{ v.name }}</strong> · statut <span class="badge gray">{{ v.status }}</span> → {{ v.target_assets | join(", ") }} · {{ v.evidence_type }}</li>{% endfor %}</ul>
+</details>
+<details>
+  <summary>Agent Scénarios — {{ agents_output.scenarios | length }} scénario(s)</summary>
+  <ul>{% for s in agents_output.scenarios %}<li>{{ s.id }} — {{ s.description }}<br><small class="muted">confiance {{ s.confidence }} · {{ s.evidence_type }}</small></li>{% endfor %}</ul>
+</details>
+
+{% endblock %}

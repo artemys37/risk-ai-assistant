@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}SPRINT — Import des documents{% endblock %}
+{% block content %}
+<h1>Analyse de risques assistée par IA</h1>
+<p class="muted">
+  L'IA <strong>propose</strong>, l'humain <strong>décide</strong> : chaque risque du
+  registre doit être validé, modifié ou rejeté par un analyste. Aucune décision
+  finale n'est prise automatiquement.
+</p>
+
+<div class="grid">
+  <div class="panel">
+    <h2>1. Importez la documentation du système</h2>
+    <form action="/upload" method="post" enctype="multipart/form-data" class="stack">
+      <input type="file" name="files" multiple accept=".pdf,.txt,.docx,.md,.json,.csv">
+      <button type="submit">Importer et lancer l'analyse</button>
+    </form>
+    <p class="muted" style="font-size:.85rem">
+      Formats : PDF, TXT, DOCX, Markdown, JSON, CSV. Le contenu des documents est
+      toujours traité comme <strong>donnée non fiable</strong> (protection contre
+      l'injection de prompt) et jamais exécuté comme instruction.
+    </p>
+  </div>
+  <div class="panel">
+    <h2>Workflow en 11 étapes</h2>
+    <ul>
+      {% for stage in stages %}
+      <li class="muted">{{ stage }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,33 @@
+# ============================================================
+# SPRINT — Dépendances du projet
+# ============================================================
+
+# Backend
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+pydantic>=2.9.0
+python-dotenv>=1.0.1
+
+# Appels LLM (OpenAI-compatible & Ollama via REST)
+httpx>=0.27.0
+
+# Traitement documentaire
+pypdf>=5.1.0
+python-docx>=1.1.2
+
+# Interface web
+jinja2>=3.1.0
+python-multipart>=0.0.9
+
+# Tests
+pytest>=8.3.0
+
+# ------------------------------------------------------------
+# Options de migration (non requises pour le fonctionnement)
+# ------------------------------------------------------------
+# Framework multi-agents (graphe d'états, interruption human-in-the-loop)
+# langgraph>=0.2.60
+#
+# Persistance / migrations PostgreSQL
+# SQLAlchemy>=2.0.35
+# alembic>=1.13.0
