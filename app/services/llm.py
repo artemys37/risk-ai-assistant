@@ -40,6 +40,7 @@ class LLMClient:
         api_key: str | None = None,
         base_url: str | None = None,
         temperature: float | None = None,
+        timeout: float | None = None,
         responder: ResponseFn | str | None = None,
     ) -> None:
         prefix = provider or config.get("LLM_PROVIDER") or "openai"
@@ -52,6 +53,7 @@ class LLMClient:
             if temperature is not None
             else config.get_float("LLM_TEMPERATURE", 0.0)
         )
+        self.timeout = timeout if timeout is not None else config.get_float("LLM_TIMEOUT", 120)
         self.responder = responder
 
         if self.provider not in {"openai", "ollama", "mock"}:
@@ -98,7 +100,7 @@ class LLMClient:
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
         try:
-            with httpx.Client(timeout=120) as client:
+            with httpx.Client(timeout=self.timeout) as client:
                 response = client.post(url, json=payload, headers=headers)
                 response.raise_for_status()
                 data = response.json()
@@ -121,7 +123,7 @@ class LLMClient:
             "options": {"temperature": self.temperature, "num_predict": max_tokens},
         }
         try:
-            with httpx.Client(timeout=120) as client:
+            with httpx.Client(timeout=self.timeout) as client:
                 response = client.post(url, json=payload)
                 response.raise_for_status()
                 data = response.json()
