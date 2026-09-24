@@ -65,10 +65,18 @@ class AnalysisService:
         return state
 
     def run(self, analysis_id: str, llm=None) -> AnalysisState:
-        """Lance (ou relance) l'analyse complète d'une analyse importée."""
+        """Lance (ou relance) l'analyse complète d'une analyse importée.
+
+        L'état est persisté après chaque étape : l'interface affiche
+        l'avancement en temps réel (barre de progression).
+        """
         state = self.get(analysis_id)
+
+        def _save(partial: AnalysisState) -> None:
+            self.storage.save_analysis(self.orchestrator.to_dict(partial))
+
         analysis = self.orchestrator.run(
-            state.documents, analysis_id=analysis_id, llm=llm
+            state.documents, analysis_id=analysis_id, llm=llm, progress=_save
         )
         self.storage.save_analysis(self.orchestrator.to_dict(analysis))
         return analysis

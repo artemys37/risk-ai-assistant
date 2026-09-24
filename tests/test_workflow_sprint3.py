@@ -60,6 +60,30 @@ def test_full_pipeline_to_proposed_register(service, mock_llm) -> None:
     assert "PROPOSED_REGISTER" in actions
 
 
+def test_progress_reports_each_stage(mock_llm) -> None:
+    """Le callback `progress` est appelé après chaque étape du pipeline :
+    l'interface peut afficher une vraie barre de progression."""
+    orchestrator = Orchestrator()
+    statuses: list[str] = []
+
+    state = orchestrator.run(
+        sample_documents(),
+        llm=mock_llm(),
+        progress=lambda partial: statuses.append(partial.status),
+    )
+
+    assert statuses == [
+        WorkflowStage.EXTRACTION.value,
+        WorkflowStage.ASSETS.value,
+        WorkflowStage.THREATS.value,
+        WorkflowStage.VULNERABILITIES.value,
+        WorkflowStage.SCENARIOS.value,
+        WorkflowStage.ASSESSMENT.value,
+        WorkflowStage.CRITIQUE.value,
+    ]
+    assert state.status == WorkflowStage.PROPOSED_REGISTER.value
+
+
 def test_pipeline_matches_scenario_ids(mock_llm) -> None:
     """Les identifiants des scénarios RSK-001/RSK-002 sont stables
     (déterministes) et repris dans les risques."""

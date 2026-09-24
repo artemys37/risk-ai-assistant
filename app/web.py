@@ -4,11 +4,14 @@ Page d'accueil (import), page d'analyse (étapes, agents, registre proposé,
 validation humaine), journal d'audit, registre final et export.
 """
 
+import logging
+import threading
 from pathlib import Path
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from starlette.concurrency import run_in_threadpool
 
 from app.agents.base import AgentError
 from app.orchestration.workflow import Orchestrator, WorkflowStage
@@ -23,12 +26,42 @@ templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
 
 _service: AnalysisService | None = None
 
+logger = logging.getLogger("app.web")
+
+_running: set[str] = set()
+_running_lock = threading.Lock()
+
 
 def service() -> AnalysisService:
     global _service
     if _service is None:
         _service = AnalysisService()
     return _service
+
+
+def _launch_analysis(analysis_id: str) -> None:
+    """Lance l'analyse complète en arrière-plan.
+
+    L'appel LLM (Ollama sur CPU) peut prendre plusieurs minutes : l'analyse
+    ne doit jamais bloquer le serveur web ni empêcher l'ouverture des pages.
+    """
+    with _running_lock:
+        if analysis_id in _running:
+            return
+        _running.add(analysis_id)
+
+    def worker() -> None:
+        try:
+            service().run(analysis_id)
+        except Exception:  # noqa: BLE001 — l'état reste consultable
+            logger.exception("analyse %s échouée en arrière-plan", analysis_id)
+        finally:
+            with _running_lock:
+                _running.discard(analysis_id)
+
+    threading.Thread(
+        target=worker, name=f"analysis-{analysis_id}", daemon=True
+    ).start()
 
 
 def _friendly_error(exc: Exception) -> HTTPException:
@@ -68,7 +101,7 @@ def list_analyses(request: Request) -> HTMLResponse:
 
 @web_router.post("/upload")
 async def upload_documents(request: Request, files: list[UploadFile] = File(...)):
-    """Importe les documents puis lance l'analyse complète."""
+    """Importe les documents puis lance l'analyse complète en arrière-plan."""
     documents: list[tuple[str, bytes]] = []
     for file in files:
         if not file.filename:
@@ -77,10 +110,10 @@ async def upload_documents(request: Request, files: list[UploadFile] = File(...)
     if not documents:
         raise HTTPException(status_code=400, detail="aucun fichier sélectionné")
     try:
-        state = service().create(documents)
-        state = service().run(state.id)
+        state = await run_in_threadpool(service().create, documents)
     except Exception as exc:  # noqa: BLE001
         raise _friendly_error(exc) from exc
+    _launch_analysis(state.id)
     return RedirectResponse(
         url=f"/analysis/{state.id}", status_code=303
     )
@@ -88,11 +121,29 @@ async def upload_documents(request: Request, files: list[UploadFile] = File(...)
 
 @web_router.post("/analysis/{analysis_id}/rerun")
 def rerun_analysis(analysis_id: str):
+    """Relance l'analyse en arrière-plan (ne bloque pas le serveur)."""
     try:
-        service().run(analysis_id)
+        service().get(analysis_id)
     except Exception as exc:  # noqa: BLE001
         raise _friendly_error(exc) from exc
+    _launch_analysis(analysis_id)
     return RedirectResponse(url=f"/analysis/{analysis_id}", status_code=303)
+
+
+@web_router.post("/analysis/{analysis_id}/delete")
+def delete_analysis(analysis_id: str):
+    """Supprime une analyse (refusée si une analyse est en cours)."""
+    with _running_lock:
+        if analysis_id in _running:
+            raise HTTPException(
+                status_code=409,
+                detail="analyse en cours de traitement : réessayer après la fin",
+            )
+    try:
+        service().delete(analysis_id)
+    except Exception as exc:  # noqa: BLE001
+        raise _friendly_error(exc) from exc
+    return RedirectResponse(url="/analyses", status_code=303)
 
 
 def _analysis_context(state) -> dict:
@@ -166,6 +217,7 @@ def analysis_page(request: Request, analysis_id: str) -> HTMLResponse:
     context = _analysis_context(state)
     context["error"] = request.query_params.get("error")
     context["flashed"] = request.query_params.get("flashed")
+    context["running"] = analysis_id in _running
     return templates.TemplateResponse(
         request=request, name="analysis.html", context=context
     )

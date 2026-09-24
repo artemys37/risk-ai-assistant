@@ -19,6 +19,7 @@ L'étape 10 est BLOQUANTE : aucun risque ne devient final sans l'humain.
 """
 
 import uuid
+from collections.abc import Callable
 from datetime import datetime, timezone
 from enum import Enum
 
@@ -108,10 +109,20 @@ class Orchestrator:
         *,
         analysis_id: str | None = None,
         llm=None,
+        progress: Callable[["AnalysisState"], None] | None = None,
     ) -> AnalysisState:
-        """Exécute le workflow complet et retourne le registre proposé."""
+        """Exécute le workflow complet et retourne le registre proposé.
+
+        `progress` (optionnel) est appelé après chaque étape avec l'état
+        courant, permettant de persister l'avancement pour l'interface.
+        """
         if not documents:
             raise AgentError("aucun document : importer au moins un fichier")
+
+        def _emit() -> None:
+            if progress is not None:
+                state.updated_at = _now()
+                progress(state)
 
         created = _now()
         state = AnalysisState(
@@ -142,6 +153,7 @@ class Orchestrator:
             output=extraction.system_name,
             source=extraction.field_sources("system_name"),
         )
+        _emit()
 
         # Étape 3 — Identification des actifs
         assets = AssetAgent().run(extraction, llm=llm)
@@ -155,6 +167,7 @@ class Orchestrator:
             output=[asset.id for asset in assets],
             source=[s for asset in assets for s in asset.source],
         )
+        _emit()
 
         # Étape 4 — Identification des menaces
         threats = ThreatAgent().run(assets, extraction=extraction, llm=llm)
@@ -168,6 +181,7 @@ class Orchestrator:
             output=[threat.id for threat in threats],
             source=[s for threat in threats for s in threat.source],
         )
+        _emit()
 
         # Étape 5 — Identification des vulnérabilités
         vulnerabilities = VulnerabilityAgent().run(
@@ -183,6 +197,7 @@ class Orchestrator:
             output=[vuln.id for vuln in vulnerabilities],
             source=[s for vuln in vulnerabilities for s in vuln.source],
         )
+        _emit()
 
         # Étape 6 — Construction des scénarios
         scenarios = RiskScenarioAgent().run(
@@ -202,6 +217,7 @@ class Orchestrator:
             output=[scenario.id for scenario in scenarios],
             source=[s for scenario in scenarios for s in scenario.source],
         )
+        _emit()
 
         # Étape 7 — Évaluation Probabilité × Impact
         risks = RiskAssessmentAgent().run(
@@ -217,6 +233,7 @@ class Orchestrator:
             output=[f"{risk.id}:{risk.score}" for risk in risks],
             source=[s for risk in risks for s in risk.sources],
         )
+        _emit()
 
         # Étape 8 — Critique automatique (obligatoire avant registre)
         report = CriticAgent().run(
@@ -236,6 +253,7 @@ class Orchestrator:
             },
             source=report.source,
         )
+        _emit()
 
         # Étape 9 — Registre proposé
         for risk in state.risks:

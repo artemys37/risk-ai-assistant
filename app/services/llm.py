@@ -54,6 +54,8 @@ class LLMClient:
             else config.get_float("LLM_TEMPERATURE", 0.0)
         )
         self.timeout = timeout if timeout is not None else config.get_float("LLM_TIMEOUT", 120)
+        self.max_tokens = config.get_int("LLM_MAX_TOKENS", 1024)
+        self.num_ctx = config.get_int("LLM_CONTEXT_LENGTH", 4096)
         self.responder = responder
 
         if self.provider not in {"openai", "ollama", "mock"}:
@@ -66,13 +68,16 @@ class LLMClient:
     # Appels publics
     # ------------------------------------------------------------------
 
-    def complete(self, system: str, user: str, max_tokens: int = 3000) -> str:
+    def complete(
+        self, system: str, user: str, max_tokens: int | None = None
+    ) -> str:
         """Envoie system + user au LLM et retourne le texte de la réponse."""
+        tokens = max_tokens if max_tokens is not None else self.max_tokens
         if self.provider == "mock":
             return self._mock(system, user)
         if self.provider == "ollama":
-            return self._call_ollama(system, user, max_tokens)
-        return self._call_openai_compatible(system, user, max_tokens)
+            return self._call_ollama(system, user, tokens)
+        return self._call_openai_compatible(system, user, tokens)
 
     # ------------------------------------------------------------------
     # Implémentations
@@ -120,7 +125,11 @@ class LLMClient:
                 {"role": "user", "content": user},
             ],
             "stream": False,
-            "options": {"temperature": self.temperature, "num_predict": max_tokens},
+            "options": {
+                "temperature": self.temperature,
+                "num_predict": max_tokens,
+                "num_ctx": self.num_ctx,
+            },
         }
         try:
             with httpx.Client(timeout=self.timeout) as client:

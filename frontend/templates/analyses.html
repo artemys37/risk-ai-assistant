@@ -23,7 +23,15 @@
     </td>
     <td class="muted">{{ a.created_at }}</td>
     <td class="muted">{{ a.updated_at }}</td>
-    <td><a class="btn" href="/analysis/{{ a.analysis_id }}">Ouvrir</a></td>
+    <td>
+      <div class="rowform">
+        <a class="btn" href="/analysis/{{ a.analysis_id }}">Ouvrir</a>
+        <form action="/analysis/{{ a.analysis_id }}/delete" method="post"
+              onsubmit="return confirm('Supprimer définitivement {{ a.analysis_id }} ?');">
+          <button type="submit" style="background:var(--bad); color:#0b1626">Supprimer</button>
+        </form>
+      </div>
+    </td>
   </tr>
   {% endfor %}
 </table>

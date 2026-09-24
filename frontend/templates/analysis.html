@@ -15,15 +15,29 @@
     <a class="btn" href="/analysis/{{ analysis_id }}/audit">Journal d'audit ({{ audit_count }})</a>
     <a class="btn" href="/register/{{ analysis_id }}">Registre final</a>
     <a class="btn" href="/export/{{ analysis_id }}">Export JSON</a>
-    <form action="/analysis/{{ analysis_id }}/rerun" method="post"><button type="submit">Relancer l'analyse</button></form>
+    <form action="/analysis/{{ analysis_id }}/rerun" method="post">{% if running %}<button type="submit" disabled title="Analyse en cours">Relancer…</button>{% else %}<button type="submit">Relancer l'analyse</button>{% endif %}</form>
+    <form action="/analysis/{{ analysis_id }}/delete" method="post"
+          onsubmit="return confirm('Supprimer définitivement {{ analysis_id }} ?');">
+      <button type="submit" style="background:var(--bad); color:#0b1626">Supprimer</button>
+    </form>
   </div>
 </div>
+{% if running %}
+<div class="flash" style="background:rgba(251,191,36,.15); color:var(--warn)">
+  ⏳ Analyse en cours en arrière-plan — cette page se rafraîchit automatiquement.
+</div>
+<script>
+  setTimeout(function () { location.reload(); }, 5000);
+</script>
+{% endif %}
 <p class="muted">{{ status_label }}</p>
 
 <div class="progress">
   {% for stage in stages %}
     {% if loop.index <= stage_index %}
       <span class="step done">{{ loop.index }}</span>
+    {% elif loop.index == stage_index + 1 %}
+      <span class="step current">{{ loop.index }}</span>
     {% else %}
       <span class="step">{{ loop.index }}</span>
     {% endif %}
